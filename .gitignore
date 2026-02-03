@@ -1,5 +1,20 @@
-.idea
-.venv
+# venv / IDE
+.venv/
+.idea/
+__pycache__/
+*.pyc
+
+# outputs
+outputs/
+
+# datasets / big assets
 assets/videos/
-outputs/videos/
+data/
+
+# models / weights (must not be committed)
+models/
 *.pt
+*.pth
+
+# logs
+*.log

@@ -1,26 +1,18 @@
 from pathlib import Path
-import sys
-import logging
 import time
 
 import cv2
-from ultralytics import YOLO
 
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-    stream=sys.stdout,
-)
-logger = logging.getLogger(__name__)
+from reid.utils.logging import setup_logging
+from reid.utils.paths import find_project_root
+from reid.io.video import open_video, get_video_props, open_writer_avi_mjpg
+from reid.detection.yolo import YoloDetector
 
 
 def main() -> None:
-    start_time = time.time()
-    logger.info("Starting YOLO26 video detection")
+    logger = setup_logging()
 
-    project_root = Path(__file__).resolve().parents[2]
-
+    project_root = find_project_root(Path(__file__))
     input_video = project_root / "assets" / "videos" / "test.mp4"
     output_dir = project_root / "outputs" / "videos"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -29,57 +21,41 @@ def main() -> None:
     if not input_video.exists():
         raise FileNotFoundError(f"Put a video here: {input_video}")
 
-    logger.info(f"Input video: {input_video}")
-    logger.info(f"Output video: {output_video}")
+    local_weights = project_root / "models" / "detectors" / "yolo26n.pt"
 
-    logger.info("Loading YOLO26 model (yolo26n.pt)")
-    model = YOLO("yolo26n.pt")
-    logger.info("Model loaded")
-
-    cap = cv2.VideoCapture(str(input_video))
-    if not cap.isOpened():
-        raise RuntimeError(f"Cannot open video: {input_video}")
-
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    logger.info(
-        f"Video opened: {w}x{h}, fps={fps:.2f}, frames={total_frames}"
+    detector = YoloDetector(
+        model_name="yolo26n.pt",
+        weights_path=local_weights,
+        conf=0.25,
+        classes=[0],
     )
 
-    fourcc = cv2.VideoWriter_fourcc(*"MJPG")
-    out = cv2.VideoWriter(str(output_video), fourcc, float(fps), (w, h))
-    if not out.isOpened():
-        raise RuntimeError("VideoWriter failed to open (try a different codec)")
+    logger.info(f"Input video:  {input_video}")
+    logger.info(f"Output video: {output_video}")
 
-    conf_thres = 0.25
-    log_every_n_frames = 30
+    cap = open_video(input_video)
+    props = get_video_props(cap)
+    logger.info(f"Video opened: {props.width}x{props.height}, fps={props.fps:.2f}, frames={props.frame_count}")
 
+    out = open_writer_avi_mjpg(output_video, props)
+
+    start_time = time.time()
     frame_idx = 0
+    log_every = 30
 
     while True:
         ok, frame = cap.read()
         if not ok:
-            logger.info("End of video stream reached")
             break
 
-        result = model.predict(
-            frame,
-            verbose=False,
-            conf=conf_thres,
-            classes=[0],
-        )[0]
+        dets = detector.predict(frame)
 
-        for b in result.boxes:
-            conf = float(b.conf.item())
-            x1, y1, x2, y2 = map(int, b.xyxy[0].tolist())
-
+        for d in dets:
+            x1, y1, x2, y2 = d.xyxy
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(
                 frame,
-                f"person {conf:.2f}",
+                f"person {d.conf:.2f}",
                 (x1, max(0, y1 - 6)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
@@ -90,24 +66,17 @@ def main() -> None:
         out.write(frame)
         frame_idx += 1
 
-        if frame_idx % log_every_n_frames == 0:
+        if frame_idx % log_every == 0:
             elapsed = time.time() - start_time
             fps_proc = frame_idx / elapsed if elapsed > 0 else 0.0
-            logger.info(
-                f"Processed {frame_idx}/{total_frames} frames "
-                f"({fps_proc:.2f} FPS)"
-            )
+            logger.info(f"Processed {frame_idx}/{props.frame_count} frames ({fps_proc:.2f} FPS)")
 
     cap.release()
     out.release()
 
     total_time = time.time() - start_time
     avg_fps = frame_idx / total_time if total_time > 0 else 0.0
-
-    logger.info(
-        f"Finished processing {frame_idx} frames in {total_time:.2f}s "
-        f"(avg {avg_fps:.2f} FPS)"
-    )
+    logger.info(f"Finished: frames={frame_idx}, time={total_time:.2f}s, avg_fps={avg_fps:.2f}")
     logger.info(f"Saved output to: {output_video}")
 
 
