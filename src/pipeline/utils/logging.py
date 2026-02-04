@@ -8,4 +8,4 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
         format="%(asctime)s | %(levelname)s | %(message)s",
         stream=sys.stdout,
     )
-    return logging.getLogger("reid")
+    return logging.getLogger("pipeline")

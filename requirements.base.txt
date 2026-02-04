@@ -6,3 +6,6 @@ ruff
 black
 pre-commit
 PyYAML
+torchreid
+gdown
+tensorboard

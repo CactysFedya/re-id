@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple, Union, Optional
+from typing import List, Tuple, Optional, Union
 
 import numpy as np
 from ultralytics import YOLO
@@ -22,7 +22,7 @@ class YoloDetector:
         classes=None,
     ):
         self.conf = float(conf)
-        self.classes = classes if classes is not None else [0]  # COCO person
+        self.classes = classes if classes is not None else [0]
 
         weights_spec = model_name
         if weights_path is not None:
@@ -42,8 +42,12 @@ class YoloDetector:
 
         dets: List[Detection] = []
         for b in result.boxes:
-            conf = float(b.conf.item())
-            cls = int(b.cls.item())
             x1, y1, x2, y2 = map(int, b.xyxy[0].tolist())
-            dets.append(Detection(xyxy=(x1, y1, x2, y2), conf=conf, cls=cls))
+            dets.append(
+                Detection(
+                    xyxy=(x1, y1, x2, y2),
+                    conf=float(b.conf.item()),
+                    cls=int(b.cls.item()),
+                )
+            )
         return dets

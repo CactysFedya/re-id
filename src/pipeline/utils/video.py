@@ -30,5 +30,5 @@ def open_writer_avi_mjpg(path: Path, props: VideoProps) -> cv2.VideoWriter:
     fourcc = cv2.VideoWriter_fourcc(*"MJPG")
     out = cv2.VideoWriter(str(path), fourcc, props.fps, (props.width, props.height))
     if not out.isOpened():
-        raise RuntimeError("VideoWriter failed to open (codec/container issue)")
+        raise RuntimeError("VideoWriter failed to open")
     return out

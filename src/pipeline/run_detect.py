@@ -3,10 +3,10 @@ import time
 
 import cv2
 
-from reid.utils.logging import setup_logging
-from reid.utils.paths import find_project_root
-from reid.io.video import open_video, get_video_props, open_writer_avi_mjpg
-from reid.detection.yolo import YoloDetector
+from pipeline.utils.logging import setup_logging
+from pipeline.utils.paths import find_project_root
+from pipeline.utils.video import open_video, get_video_props, open_writer_avi_mjpg
+from pipeline.detection.yolo import YoloDetector
 
 
 def main() -> None:
