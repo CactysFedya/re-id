@@ -4,19 +4,20 @@ import time
 import cv2
 
 from pipeline.utils.logging import setup_logging
-from pipeline.utils.paths import find_project_root
+from pipeline.utils.paths import find_project_root, make_run_dir
 from pipeline.utils.video import open_video, get_video_props, open_writer_avi_mjpg
 from pipeline.detection.yolo import YoloDetector
 
 
 def main() -> None:
-    logger = setup_logging()
-
     project_root = find_project_root(Path(__file__))
+
     input_video = project_root / "assets" / "videos" / "test.mp4"
-    output_dir = project_root / "outputs" / "videos"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_video = output_dir / "demo_detect_yolo26.avi"
+    outputs_root = project_root / "outputs" / "videos"
+    run_dir = make_run_dir(outputs_root, prefix="detect")
+    output_video = run_dir / "demo_detect_yolo26.avi"
+
+    logger = setup_logging(log_file=run_dir / "run.log")
 
     if not input_video.exists():
         raise FileNotFoundError(f"Put a video here: {input_video}")
@@ -31,6 +32,7 @@ def main() -> None:
     )
 
     logger.info(f"Input video:  {input_video}")
+    logger.info(f"Run dir:      {run_dir}")
     logger.info(f"Output video: {output_video}")
 
     cap = open_video(input_video)
