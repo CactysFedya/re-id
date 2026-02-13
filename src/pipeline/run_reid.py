@@ -15,8 +15,8 @@ def main() -> None:
     project_root = find_project_root(Path(__file__))
 
     input_video = project_root / "assets" / "videos" / "test.mp4"
-    outputs_root = project_root / "outputs" / "videos"
-    run_dir = make_run_dir(outputs_root, prefix="reid")
+    outputs_root = project_root / "outputs"
+    run_dir = make_run_dir(outputs_root, prefix="runs")
     output_video = run_dir / "demo_reid_with_tracking.avi"
 
     logger = setup_logging(log_file=run_dir / "run.log")
@@ -28,6 +28,7 @@ def main() -> None:
     extractor = ReIDExtractor()
     gallery = ReIDGallery(sim_threshold=0.55, ema=0.8, update_threshold=0.60)
     tracker = IoUTracker(iou_threshold=0.3, max_missed=15)
+    confirm_hits = 3
 
     logger.info(f"Input video:  {input_video}")
     logger.info(f"Run dir:      {run_dir}")
@@ -60,6 +61,7 @@ def main() -> None:
             items.append((td.track_id, x1, y1, x2, y2, td.conf))
 
         used_person_ids = set()
+        used_candidate_ids = set()
 
         if crops:
             feats = l2_normalize(extractor(crops))
@@ -67,22 +69,40 @@ def main() -> None:
                 emb = feats[i]
 
                 pid = tracker.get_person_id(track_id)
-                match = None
 
-                if pid is None:
-                    match = gallery.match(emb, forbidden_ids=used_person_ids)
-                    pid = match.person_id
-                    tracker.set_person_id(track_id, pid)
-
-                if match is not None:
-                    if (not match.created_new) and gallery.should_update(match.similarity):
-                        gallery.update(pid, emb)
-                else:
+                if pid is not None:
                     sim = gallery.similarity(pid, emb)
                     if gallery.should_update(sim):
                         gallery.update(pid, emb)
+                    used_person_ids.add(pid)
+                else:
+                    forbidden = used_person_ids | used_candidate_ids
+                    match = gallery.match(emb, forbidden_ids=forbidden, create_new=False)
 
-                used_person_ids.add(pid)
+                    cand_id = match.person_id
+                    cand_sim = match.similarity
+
+                    if cand_id == -1:
+                        cand_id = 0
+                        cand_sim = float("-inf")
+
+                    if cand_id != 0:
+                        confirmed = tracker.propose_person_id(track_id, cand_id, confirm_hits)
+                        if confirmed is not None:
+                            pid = confirmed
+                            used_person_ids.add(pid)
+                            if gallery.should_update(cand_sim):
+                                gallery.update(pid, emb)
+                        else:
+                            used_candidate_ids.add(cand_id)
+                    else:
+                        confirmed = tracker.propose_person_id(track_id, 0, confirm_hits)
+                        if confirmed is not None:
+                            pid = gallery.add(emb)
+                            tracker.set_person_id(track_id, pid)
+                            used_person_ids.add(pid)
+                        else:
+                            used_candidate_ids.add(0)
 
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(

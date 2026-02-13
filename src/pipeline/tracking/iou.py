@@ -37,6 +37,8 @@ class Track:
     conf: float
     missed: int = 0
     person_id: Optional[int] = None
+    candidate_id: Optional[int] = None
+    candidate_hits: int = 0
 
 
 @dataclass(frozen=True)
@@ -95,6 +97,11 @@ class IoUTracker:
             self._next_track_id += 1
             self._tracks[tid] = Track(track_id=tid, bbox=d.xyxy, conf=d.conf, missed=0)
 
+        for t in self._tracks.values():
+            if t.missed > 0:
+                t.candidate_id = None
+                t.candidate_hits = 0
+
         dead = [tid for tid, t in self._tracks.items() if t.missed > self.max_missed]
         for tid in dead:
             del self._tracks[tid]
@@ -113,3 +120,32 @@ class IoUTracker:
     def get_person_id(self, track_id: int) -> Optional[int]:
         tr = self._tracks.get(track_id)
         return tr.person_id if tr is not None else None
+
+    def get_candidate(self, track_id: int) -> Tuple[Optional[int], int]:
+        tr = self._tracks.get(track_id)
+        if tr is None:
+            return None, 0
+        return tr.candidate_id, tr.candidate_hits
+
+    def propose_person_id(self, track_id: int, candidate_id: int, confirm_hits: int) -> Optional[int]:
+        tr = self._tracks.get(track_id)
+        if tr is None:
+            return None
+
+        if tr.person_id is not None:
+            return tr.person_id
+
+        if tr.candidate_id == candidate_id:
+            tr.candidate_hits += 1
+        else:
+            tr.candidate_id = candidate_id
+            tr.candidate_hits = 1
+
+        if tr.candidate_hits >= int(confirm_hits):
+            tr.person_id = tr.candidate_id
+            tr.candidate_id = None
+            tr.candidate_hits = 0
+            return tr.person_id
+
+        return None
+

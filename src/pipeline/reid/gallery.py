@@ -46,6 +46,9 @@ class ReIDGallery:
         self._prototypes[pid] = l2_normalize(emb).copy()
         return MatchResult(pid, float(similarity_hint), created_new=True)
 
+    def add(self, emb: np.ndarray) -> int:
+        return self._create_new(emb).person_id
+
     def match(
         self,
         emb: np.ndarray,
