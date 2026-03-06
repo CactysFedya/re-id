@@ -1,7 +1,9 @@
 from pathlib import Path
+import json
 import time
 import cv2
 
+from pipeline.config import load_pipeline_config
 from pipeline.utils.logging import setup_logging
 from pipeline.utils.paths import find_project_root, make_run_dir
 from pipeline.utils.video import open_video, get_video_props, open_writer_avi_mjpg
@@ -13,36 +15,59 @@ from pipeline.tracking.iou import IoUTracker
 
 def main() -> None:
     project_root = find_project_root(Path(__file__))
+    cfg = load_pipeline_config(project_root).reid
 
-    input_video = project_root / "assets" / "videos" / "test.mp4"
-    outputs_root = project_root / "outputs"
-    run_dir = make_run_dir(outputs_root, prefix="runs")
-    output_video = run_dir / "demo_reid_with_tracking.avi"
+    input_video = project_root / cfg.input_video
+    outputs_root = project_root / cfg.outputs_root
+    run_dir = make_run_dir(outputs_root, prefix=cfg.run_prefix)
+    output_video = run_dir / cfg.output_video_name
+    metrics_path = run_dir / cfg.metrics_file_name
 
     logger = setup_logging(log_file=run_dir / "run.log")
 
     if not input_video.exists():
         raise FileNotFoundError(f"Put a video here: {input_video}")
 
-    detector = YoloDetector(model_name="yolo26n.pt", conf=0.25, classes=[0])
-    extractor = ReIDExtractor()
-    gallery = ReIDGallery(sim_threshold=0.55, ema=0.8, update_threshold=0.60)
-    tracker = IoUTracker(iou_threshold=0.3, max_missed=15)
-    confirm_hits = 3
+    local_weights = project_root / cfg.detector.weights_path if cfg.detector.weights_path else None
+    detector = YoloDetector(
+        model_name=cfg.detector.model_name,
+        weights_path=local_weights,
+        conf=cfg.detector.conf,
+        classes=cfg.detector.classes,
+    )
+    extractor = ReIDExtractor(device=cfg.extractor.device, model_name=cfg.extractor.model_name)
+    gallery = ReIDGallery(
+        sim_threshold=cfg.gallery.sim_threshold,
+        ema=cfg.gallery.ema,
+        update_threshold=cfg.gallery.update_threshold,
+    )
+    tracker = IoUTracker(iou_threshold=cfg.tracker.iou_threshold, max_missed=cfg.tracker.max_missed)
+    confirm_hits = cfg.tracker.confirm_hits
+    new_identity_candidate_id = cfg.tracker.new_identity_candidate_id
 
     logger.info(f"Input video:  {input_video}")
     logger.info(f"Run dir:      {run_dir}")
     logger.info(f"Output video: {output_video}")
+    logger.info(f"Metrics file: {metrics_path}")
 
     cap = open_video(input_video)
     props = get_video_props(cap)
     out = open_writer_avi_mjpg(output_video, props)
 
-    log_every = 30
+    log_every = cfg.log_every
     start = time.time()
     frame_idx = 0
+    total_frame_time_s = 0.0
+    total_feature_time_s = 0.0
+    reappearance_count = 0
+    person_last_track = {}
+    draw_color = (0, 255, 0)
+    draw_box_thickness = 2
+    draw_font_scale = 0.6
+    draw_text_thickness = 2
 
     while True:
+        frame_started = time.perf_counter()
         ok, frame = cap.read()
         if not ok:
             break
@@ -63,8 +88,12 @@ def main() -> None:
         used_person_ids = set()
         used_candidate_ids = set()
 
+        feature_time_s = 0.0
+
         if crops:
+            feature_started = time.perf_counter()
             feats = l2_normalize(extractor(crops))
+            feature_time_s += time.perf_counter() - feature_started
             for i, (track_id, x1, y1, x2, y2, conf) in enumerate(items):
                 emb = feats[i]
 
@@ -83,40 +112,47 @@ def main() -> None:
                     cand_sim = match.similarity
 
                     if cand_id == -1:
-                        cand_id = 0
+                        cand_id = new_identity_candidate_id
                         cand_sim = float("-inf")
 
-                    if cand_id != 0:
+                    if cand_id != new_identity_candidate_id:
                         confirmed = tracker.propose_person_id(track_id, cand_id, confirm_hits)
                         if confirmed is not None:
                             pid = confirmed
                             used_person_ids.add(pid)
                             if gallery.should_update(cand_sim):
                                 gallery.update(pid, emb)
+                            prev_track_id = person_last_track.get(pid)
+                            if prev_track_id is not None and prev_track_id != track_id:
+                                reappearance_count += 1
+                            person_last_track[pid] = track_id
                         else:
                             used_candidate_ids.add(cand_id)
                     else:
-                        confirmed = tracker.propose_person_id(track_id, 0, confirm_hits)
+                        confirmed = tracker.propose_person_id(track_id, new_identity_candidate_id, confirm_hits)
                         if confirmed is not None:
                             pid = gallery.add(emb)
                             tracker.set_person_id(track_id, pid)
                             used_person_ids.add(pid)
+                            person_last_track[pid] = track_id
                         else:
-                            used_candidate_ids.add(0)
+                            used_candidate_ids.add(new_identity_candidate_id)
 
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), draw_color, draw_box_thickness)
                 cv2.putText(
                     frame,
                     f"tid {track_id} | id {pid} | det {conf:.2f}",
                     (x1, max(0, y1 - 6)),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 255, 0),
-                    2,
+                    draw_font_scale,
+                    draw_color,
+                    draw_text_thickness,
                 )
 
+        total_feature_time_s += feature_time_s
         out.write(frame)
         frame_idx += 1
+        total_frame_time_s += time.perf_counter() - frame_started
 
         if frame_idx % log_every == 0:
             elapsed = time.time() - start
@@ -129,8 +165,31 @@ def main() -> None:
 
     cap.release()
     out.release()
-    logger.info(f"Finished {frame_idx} frames in {time.time() - start:.2f}s")
+
+    total_wall_time_s = time.time() - start
+    avg_fps = frame_idx / total_wall_time_s if total_wall_time_s > 0 else 0.0
+    avg_total_ms = (total_frame_time_s / frame_idx * 1000.0) if frame_idx > 0 else 0.0
+    avg_feature_ms = (total_feature_time_s / frame_idx * 1000.0) if frame_idx > 0 else 0.0
+    total_global_ids_created = gallery.total_ids_created()
+
+    metrics = {
+        "frames_processed": frame_idx,
+        "avg_fps": round(avg_fps, 4),
+        "avg_total_ms": round(avg_total_ms, 4),
+        "avg_feature_ms": round(avg_feature_ms, 4),
+        "total_global_ids_created": int(total_global_ids_created),
+        "reappearance_count": int(reappearance_count),
+    }
+    metrics_path.write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    logger.info(f"Finished {frame_idx} frames in {total_wall_time_s:.2f}s")
+    logger.info(
+        f"Metrics | avg_fps={metrics['avg_fps']:.4f} | avg_total_ms={metrics['avg_total_ms']:.4f} | "
+        f"avg_feature_ms={metrics['avg_feature_ms']:.4f} | total_global_ids_created={metrics['total_global_ids_created']} | "
+        f"reappearance_count={metrics['reappearance_count']}"
+    )
     logger.info(f"Saved output to: {output_video}")
+    logger.info(f"Saved metrics to: {metrics_path}")
 
 
 if __name__ == "__main__":

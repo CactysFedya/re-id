@@ -1,0 +1,28 @@
+[reid]
+input_video = "assets/videos/test.mp4"
+outputs_root = "outputs"
+run_prefix = "runs"
+output_video_name = "demo_reid.avi"
+log_every = 30
+metrics_file_name = "metrics.json"
+
+[reid.detector]
+model_name = "yolo26n.pt"
+weights_path = "models/detectors/yolo26n.pt"
+conf = 0.25
+classes = [0]
+
+[reid.extractor]
+model_name = "osnet_x0_25"
+device = ""
+
+[reid.gallery]
+sim_threshold = 0.55
+ema = 0.8
+update_threshold = 0.6
+
+[reid.tracker]
+iou_threshold = 0.3
+max_missed = 15
+confirm_hits = 3
+new_identity_candidate_id = 0

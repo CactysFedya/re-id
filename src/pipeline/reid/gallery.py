@@ -40,6 +40,9 @@ class ReIDGallery:
     def __len__(self) -> int:
         return len(self._prototypes)
 
+    def total_ids_created(self) -> int:
+        return self._next_id - 1
+
     def _create_new(self, emb: np.ndarray, similarity_hint: float = 0.0) -> MatchResult:
         pid = self._next_id
         self._next_id += 1
