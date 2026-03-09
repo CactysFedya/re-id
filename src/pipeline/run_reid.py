@@ -22,6 +22,7 @@ def main() -> None:
     run_dir = make_run_dir(outputs_root, prefix=cfg.run_prefix)
     output_video = run_dir / cfg.output_video_name
     metrics_path = run_dir / cfg.metrics_file_name
+    config_snapshot_path = run_dir / "config_snapshot.json"
 
     logger = setup_logging(log_file=run_dir / "run.log")
 
@@ -29,13 +30,21 @@ def main() -> None:
         raise FileNotFoundError(f"Put a video here: {input_video}")
 
     local_weights = project_root / cfg.detector.weights_path if cfg.detector.weights_path else None
+    extractor_weights = project_root / cfg.extractor.weights_path if cfg.extractor.weights_path else None
+    if extractor_weights is not None and not extractor_weights.exists():
+        raise FileNotFoundError(f"ReID weights file not found: {extractor_weights}")
+
     detector = YoloDetector(
         model_name=cfg.detector.model_name,
         weights_path=local_weights,
         conf=cfg.detector.conf,
         classes=cfg.detector.classes,
     )
-    extractor = ReIDExtractor(device=cfg.extractor.device, model_name=cfg.extractor.model_name)
+    extractor = ReIDExtractor(
+        device=cfg.extractor.device,
+        model_name=cfg.extractor.model_name,
+        model_weights_path=str(extractor_weights) if extractor_weights else None,
+    )
     gallery = ReIDGallery(
         sim_threshold=cfg.gallery.sim_threshold,
         ema=cfg.gallery.ema,
@@ -49,6 +58,41 @@ def main() -> None:
     logger.info(f"Run dir:      {run_dir}")
     logger.info(f"Output video: {output_video}")
     logger.info(f"Metrics file: {metrics_path}")
+    logger.info(f"Config file:  {config_snapshot_path}")
+
+    config_snapshot = {
+        "reid": {
+            "input_video": cfg.input_video,
+            "outputs_root": cfg.outputs_root,
+            "run_prefix": cfg.run_prefix,
+            "output_video_name": cfg.output_video_name,
+            "log_every": cfg.log_every,
+            "metrics_file_name": cfg.metrics_file_name,
+            "detector": {
+                "model_name": cfg.detector.model_name,
+                "weights_path": cfg.detector.weights_path,
+                "conf": cfg.detector.conf,
+                "classes": cfg.detector.classes,
+            },
+            "extractor": {
+                "model_name": cfg.extractor.model_name,
+                "device": cfg.extractor.device,
+                "weights_path": cfg.extractor.weights_path,
+            },
+            "gallery": {
+                "sim_threshold": cfg.gallery.sim_threshold,
+                "ema": cfg.gallery.ema,
+                "update_threshold": cfg.gallery.update_threshold,
+            },
+            "tracker": {
+                "iou_threshold": cfg.tracker.iou_threshold,
+                "max_missed": cfg.tracker.max_missed,
+                "confirm_hits": cfg.tracker.confirm_hits,
+                "new_identity_candidate_id": cfg.tracker.new_identity_candidate_id,
+            },
+        }
+    }
+    config_snapshot_path.write_text(json.dumps(config_snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
 
     cap = open_video(input_video)
     props = get_video_props(cap)

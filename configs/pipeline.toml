@@ -13,7 +13,8 @@ conf = 0.25
 classes = [0]
 
 [reid.extractor]
-model_name = "osnet_x0_25"
+model_name = "resnet50"
+weights_path = "models/resnet50_market1501_clean.pth"
 device = ""
 
 [reid.gallery]

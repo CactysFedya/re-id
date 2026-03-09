@@ -22,6 +22,7 @@ class DetectorConfig:
 class ExtractorConfig:
     model_name: str
     device: Optional[str]
+    weights_path: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,7 @@ def load_pipeline_config(project_root: Path, config_relpath: str = "configs/pipe
         extractor=ExtractorConfig(
             model_name=reid_raw.get("extractor", {}).get("model_name", "osnet_x0_25"),
             device=_opt_str(reid_raw.get("extractor", {}).get("device")),
+            weights_path=_opt_str(reid_raw.get("extractor", {}).get("weights_path")),
         ),
         gallery=GalleryConfig(
             sim_threshold=float(reid_raw.get("gallery", {}).get("sim_threshold", 0.55)),
