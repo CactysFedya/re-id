@@ -9,7 +9,7 @@ class ReIDExtractor:
     def __init__(
         self,
         device: Optional[str] = None,
-        model_name: str = "resnet50",
+        model_name: str = "osnet_x1_0",
         model_weights_path: Optional[str] = None,
     ):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
