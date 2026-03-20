@@ -1,5 +1,4 @@
 [reid]
-input_video = "assets/videos/test.mp4"
 outputs_root = "outputs"
 run_prefix = "runs"
 output_video_name = "demo_reid.avi"
@@ -9,7 +8,6 @@ metrics_file_name = "metrics.json"
 [reid.source]
 type = "http"
 uri = "http://192.168.5.90:8080/video"
-device_index = 0
 reconnect = true
 reconnect_delay_s = 3.0
 reconnect_max_attempts = 5
