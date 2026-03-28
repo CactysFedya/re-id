@@ -35,8 +35,9 @@ class Track:
     track_id: int
     bbox: BBox
     conf: float
+    cls: int
     missed: int = 0
-    person_id: Optional[int] = None
+    identity_id: Optional[int] = None
     candidate_id: Optional[int] = None
     candidate_hits: int = 0
 
@@ -46,6 +47,7 @@ class TrackDet:
     track_id: int
     bbox: BBox
     conf: float
+    cls: int
 
 
 class IoUTracker:
@@ -66,7 +68,10 @@ class IoUTracker:
 
         pairs: List[Tuple[int, int, float]] = []
         for tid, tr in self._tracks.items():
-            for j, bb in enumerate(det_bboxes):
+            for j, d in enumerate(detections):
+                if tr.cls != d.cls:
+                    continue
+                bb = d.xyxy
                 s = iou(tr.bbox, bb)
                 if s >= self.iou_threshold:
                     pairs.append((tid, j, s))
@@ -88,6 +93,7 @@ class IoUTracker:
             tr = self._tracks[tid]
             tr.bbox = d.xyxy
             tr.conf = d.conf
+            tr.cls = d.cls
             tr.missed = 0
 
         for j, d in enumerate(detections):
@@ -95,7 +101,7 @@ class IoUTracker:
                 continue
             tid = self._next_track_id
             self._next_track_id += 1
-            self._tracks[tid] = Track(track_id=tid, bbox=d.xyxy, conf=d.conf, missed=0)
+            self._tracks[tid] = Track(track_id=tid, bbox=d.xyxy, conf=d.conf, cls=d.cls, missed=0)
 
         for t in self._tracks.values():
             if t.missed > 0:
@@ -109,17 +115,17 @@ class IoUTracker:
         out: List[TrackDet] = []
         for tid, t in self._tracks.items():
             if t.missed == 0:
-                out.append(TrackDet(track_id=tid, bbox=t.bbox, conf=t.conf))
+                out.append(TrackDet(track_id=tid, bbox=t.bbox, conf=t.conf, cls=t.cls))
         return out
 
-    def set_person_id(self, track_id: int, person_id: int) -> None:
+    def set_identity_id(self, track_id: int, identity_id: int) -> None:
         tr = self._tracks.get(track_id)
         if tr is not None:
-            tr.person_id = person_id
+            tr.identity_id = identity_id
 
-    def get_person_id(self, track_id: int) -> Optional[int]:
+    def get_identity_id(self, track_id: int) -> Optional[int]:
         tr = self._tracks.get(track_id)
-        return tr.person_id if tr is not None else None
+        return tr.identity_id if tr is not None else None
 
     def get_candidate(self, track_id: int) -> Tuple[Optional[int], int]:
         tr = self._tracks.get(track_id)
@@ -127,13 +133,13 @@ class IoUTracker:
             return None, 0
         return tr.candidate_id, tr.candidate_hits
 
-    def propose_person_id(self, track_id: int, candidate_id: int, confirm_hits: int) -> Optional[int]:
+    def propose_identity_id(self, track_id: int, candidate_id: int, confirm_hits: int) -> Optional[int]:
         tr = self._tracks.get(track_id)
         if tr is None:
             return None
 
-        if tr.person_id is not None:
-            return tr.person_id
+        if tr.identity_id is not None:
+            return tr.identity_id
 
         if tr.candidate_id == candidate_id:
             tr.candidate_hits += 1
@@ -142,10 +148,10 @@ class IoUTracker:
             tr.candidate_hits = 1
 
         if tr.candidate_hits >= int(confirm_hits):
-            tr.person_id = tr.candidate_id
+            tr.identity_id = tr.candidate_id
             tr.candidate_id = None
             tr.candidate_hits = 0
-            return tr.person_id
+            return tr.identity_id
 
         return None
 

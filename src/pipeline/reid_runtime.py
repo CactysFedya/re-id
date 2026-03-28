@@ -1,20 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import json
 import time
-from pathlib import Path
 from typing import Any
 
 import cv2
 
-from pipeline.config import ReidRunConfig
-from pipeline.detection.yolo import YoloDetector
-from pipeline.reid.extractor import ReIDExtractor
 from pipeline.reid.gallery import ReIDGallery, l2_normalize
 from pipeline.tracking.iou import IoUTracker
 from pipeline.utils.performance import StageTimer
-from pipeline.utils.sources import build_reid_config_snapshot
+
 
 @dataclass
 class ReidRuntime:
@@ -30,7 +25,8 @@ class ReidRuntime:
     reappearance_count: int = 0
     skipped_frame_count: int = 0
     reconnect_count: int = 0
-    person_last_track: dict[int, int] = field(default_factory=dict)
+    last_gallery_autosave_monotonic_s: float | None = None
+    identity_last_track: dict[int, int] = field(default_factory=dict)
     draw_color: tuple[int, int, int] = (0, 255, 0)
     draw_box_thickness: int = 2
     draw_font_scale: float = 0.6
@@ -56,11 +52,16 @@ class ReidRuntime:
             if crop.size == 0:
                 continue
             crops.append(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB))
-            items.append((td.track_id, x1, y1, x2, y2, td.conf))
+            items.append((td.track_id, td.cls, x1, y1, x2, y2, td.conf))
         self.perf.add("crop", time.perf_counter() - crop_started, count=len(crops))
 
-        used_person_ids = set()
+        used_identity_ids = set()
         used_candidate_ids = set()
+        protected_identity_ids = {
+            track.identity_id
+            for track in self.tracker.tracks()
+            if track.identity_id is not None
+        }
 
         if crops:
             feature_started = time.perf_counter()
@@ -68,19 +69,20 @@ class ReidRuntime:
             self.perf.add("reid", time.perf_counter() - feature_started, count=len(crops))
 
             draw_started = time.perf_counter()
-            for i, (track_id, x1, y1, x2, y2, conf) in enumerate(items):
+            for i, (track_id, cls_id, x1, y1, x2, y2, conf) in enumerate(items):
                 emb = feats[i]
-                pid = self.tracker.get_person_id(track_id)
+                identity_id = self.tracker.get_identity_id(track_id)
 
-                if pid is not None:
-                    sim = self.gallery.similarity(pid, emb)
+                if identity_id is not None:
+                    self.gallery.note_seen(identity_id)
+                    sim = self.gallery.similarity(identity_id, emb)
                     if self.gallery.should_update(sim):
-                        self.gallery.update(pid, emb)
-                    used_person_ids.add(pid)
+                        self.gallery.update(identity_id, emb)
+                    used_identity_ids.add(identity_id)
                 else:
-                    forbidden = used_person_ids | used_candidate_ids
-                    match = self.gallery.match(emb, forbidden_ids=forbidden, create_new=False)
-                    cand_id = match.person_id
+                    forbidden = used_identity_ids | used_candidate_ids
+                    match = self.gallery.match(emb, forbidden_ids=forbidden, create_new=False, label=cls_id)
+                    cand_id = match.identity_id
                     cand_sim = match.similarity
 
                     if cand_id == -1:
@@ -88,36 +90,37 @@ class ReidRuntime:
                         cand_sim = float("-inf")
 
                     if cand_id != self.new_identity_candidate_id:
-                        confirmed = self.tracker.propose_person_id(track_id, cand_id, self.confirm_hits)
+                        confirmed = self.tracker.propose_identity_id(track_id, cand_id, self.confirm_hits)
                         if confirmed is not None:
-                            pid = confirmed
-                            used_person_ids.add(pid)
+                            identity_id = confirmed
+                            self.gallery.note_seen(identity_id)
+                            used_identity_ids.add(identity_id)
                             if self.gallery.should_update(cand_sim):
-                                self.gallery.update(pid, emb)
-                            prev_track_id = self.person_last_track.get(pid)
+                                self.gallery.update(identity_id, emb)
+                            prev_track_id = self.identity_last_track.get(identity_id)
                             if prev_track_id is not None and prev_track_id != track_id:
                                 self.reappearance_count += 1
-                            self.person_last_track[pid] = track_id
+                            self.identity_last_track[identity_id] = track_id
                         else:
                             used_candidate_ids.add(cand_id)
                     else:
-                        confirmed = self.tracker.propose_person_id(
+                        confirmed = self.tracker.propose_identity_id(
                             track_id,
                             self.new_identity_candidate_id,
                             self.confirm_hits,
                         )
                         if confirmed is not None:
-                            pid = self.gallery.add(emb)
-                            self.tracker.set_person_id(track_id, pid)
-                            used_person_ids.add(pid)
-                            self.person_last_track[pid] = track_id
+                            identity_id = self.gallery.add(emb, label=cls_id, protected_ids=protected_identity_ids)
+                            self.tracker.set_identity_id(track_id, identity_id)
+                            used_identity_ids.add(identity_id)
+                            self.identity_last_track[identity_id] = track_id
                         else:
                             used_candidate_ids.add(self.new_identity_candidate_id)
 
                 cv2.rectangle(frame, (x1, y1), (x2, y2), self.draw_color, self.draw_box_thickness)
                 cv2.putText(
                     frame,
-                    f"tid {track_id} | id {pid} | det {conf:.2f}",
+                    f"cls {cls_id} | tid {track_id} | id {identity_id} | det {conf:.2f}",
                     (x1, max(0, y1 - 6)),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     self.draw_font_scale,
@@ -155,44 +158,8 @@ class ReidRuntime:
             "total_tracked_detections": self.perf.total("track"),
             "total_crops_encoded": self.perf.total("crop"),
             "total_global_ids_created": int(self.gallery.total_ids_created()),
+            "total_autosaves": self.perf.total("autosave"),
+            "total_gallery_evictions": int(self.gallery.total_evictions()),
             "reappearance_count": int(self.reappearance_count),
             "reconnect_count": int(self.reconnect_count),
         }
-
-
-def build_runtime(project_root: Path, cfg: ReidRunConfig) -> ReidRuntime:
-    local_weights = project_root / cfg.detector.weights_path if cfg.detector.weights_path else None
-    extractor_weights = project_root / cfg.extractor.weights_path if cfg.extractor.weights_path else None
-    if extractor_weights is not None and not extractor_weights.exists():
-        raise FileNotFoundError(f"ReID weights file not found: {extractor_weights}")
-
-    detector = YoloDetector(
-        model_name=cfg.detector.model_name,
-        weights_path=local_weights,
-        conf=cfg.detector.conf,
-        classes=cfg.detector.classes,
-    )
-    extractor = ReIDExtractor(
-        device=cfg.extractor.device,
-        model_name=cfg.extractor.model_name,
-        model_weights_path=str(extractor_weights) if extractor_weights else None,
-    )
-    gallery = ReIDGallery(
-        sim_threshold=cfg.gallery.sim_threshold,
-        ema=cfg.gallery.ema,
-        update_threshold=cfg.gallery.update_threshold,
-    )
-    tracker = IoUTracker(iou_threshold=cfg.tracker.iou_threshold, max_missed=cfg.tracker.max_missed)
-    return ReidRuntime(
-        detector=detector,
-        extractor=extractor,
-        gallery=gallery,
-        tracker=tracker,
-        confirm_hits=cfg.tracker.confirm_hits,
-        new_identity_candidate_id=cfg.tracker.new_identity_candidate_id,
-    )
-
-
-def save_config_snapshot(path: Path, cfg: ReidRunConfig) -> None:
-    snapshot = build_reid_config_snapshot(cfg)
-    path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")

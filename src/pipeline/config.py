@@ -30,6 +30,11 @@ class GalleryConfig:
     sim_threshold: float
     ema: float
     update_threshold: float
+    max_ids: Optional[int]
+    state_path: Optional[str]
+    load_on_start: bool
+    save_on_exit: bool
+    autosave_interval_s: Optional[float]
 
 
 @dataclass(frozen=True)
@@ -120,6 +125,11 @@ def load_pipeline_config(project_root: Path, config_relpath: str = "configs/pipe
             sim_threshold=float(reid_raw.get("gallery", {}).get("sim_threshold", 0.55)),
             ema=float(reid_raw.get("gallery", {}).get("ema", 0.8)),
             update_threshold=float(reid_raw.get("gallery", {}).get("update_threshold", 0.60)),
+            max_ids=_opt_int(reid_raw.get("gallery", {}).get("max_ids", 1000)),
+            state_path=_opt_str(reid_raw.get("gallery", {}).get("state_path", "outputs/reid_gallery.json")),
+            load_on_start=bool(reid_raw.get("gallery", {}).get("load_on_start", True)),
+            save_on_exit=bool(reid_raw.get("gallery", {}).get("save_on_exit", True)),
+            autosave_interval_s=_opt_float(reid_raw.get("gallery", {}).get("autosave_interval_s", 60.0)),
         ),
         tracker=TrackerConfig(
             iou_threshold=float(reid_raw.get("tracker", {}).get("iou_threshold", 0.3)),

@@ -97,6 +97,11 @@ def build_reid_config_snapshot(cfg: Any) -> dict[str, Any]:
                 "sim_threshold": cfg.gallery.sim_threshold,
                 "ema": cfg.gallery.ema,
                 "update_threshold": cfg.gallery.update_threshold,
+                "max_ids": cfg.gallery.max_ids,
+                "state_path": cfg.gallery.state_path,
+                "load_on_start": cfg.gallery.load_on_start,
+                "save_on_exit": cfg.gallery.save_on_exit,
+                "autosave_interval_s": cfg.gallery.autosave_interval_s,
             },
             "tracker": {
                 "iou_threshold": cfg.tracker.iou_threshold,

@@ -6,8 +6,8 @@ log_every = 30
 metrics_file_name = "metrics.json"
 
 [reid.source]
-type = "http"
-uri = "http://192.168.5.90:8080/video"
+type = "file"
+uri = "assets/videos/test.mp4"
 reconnect = true
 reconnect_delay_s = 3.0
 reconnect_max_attempts = 5
@@ -34,6 +34,11 @@ device = ""
 sim_threshold = 0.55
 ema = 0.8
 update_threshold = 0.6
+max_ids = 1000
+state_path = "outputs/reid_gallery.json"
+load_on_start = true
+save_on_exit = true
+autosave_interval_s = 60.0
 
 [reid.tracker]
 iou_threshold = 0.3

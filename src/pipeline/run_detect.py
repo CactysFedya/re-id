@@ -57,7 +57,7 @@ def main() -> None:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(
                 frame,
-                f"person {d.conf:.2f}",
+                f"cls {d.cls} {d.conf:.2f}",
                 (x1, max(0, y1 - 6)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
