@@ -114,6 +114,9 @@ def run_file() -> None:
 
     total_wall_time_s = time.time() - start
     metrics = runtime.build_metrics(total_wall_time_s)
+    metrics["source_fps"] = round(float(props.fps), 4)
+    if props.fps > 0:
+        metrics["processing_to_source_fps_ratio"] = round(float(metrics["avg_fps"]) / float(props.fps), 4)
     metrics_path.write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
     saved_gallery_path = save_gallery_state(project_root, cfg, runtime.gallery)
 
