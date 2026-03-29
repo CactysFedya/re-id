@@ -148,15 +148,27 @@ class ReidRuntime:
     def build_metrics(self, total_wall_time_s: float) -> dict[str, float | int]:
         avg_fps = self.frame_idx / total_wall_time_s if total_wall_time_s > 0 else 0.0
         avg_total_ms = (self.total_frame_time_s / self.frame_idx * 1000.0) if self.frame_idx > 0 else 0.0
+        total_detections = self.perf.total("detect")
+        total_tracked_detections = self.perf.total("track")
+        total_crops_encoded = self.perf.total("crop")
+        avg_detections_per_frame = total_detections / self.frame_idx if self.frame_idx > 0 else 0.0
+        avg_crops_per_frame = total_crops_encoded / self.frame_idx if self.frame_idx > 0 else 0.0
+        crop_utilization_ratio = total_crops_encoded / total_detections if total_detections > 0 else 0.0
+        total_reid_s = self.perf.totals_s.get("reid", 0.0)
+        avg_reid_ms_per_crop = total_reid_s / total_crops_encoded * 1000.0 if total_crops_encoded > 0 else 0.0
         return {
             "frames_processed": self.frame_idx,
             "frames_skipped": int(self.skipped_frame_count),
             "avg_fps": round(avg_fps, 4),
             "avg_total_ms": round(avg_total_ms, 4),
+            "avg_detections_per_frame": round(avg_detections_per_frame, 4),
+            "avg_crops_per_frame": round(avg_crops_per_frame, 4),
+            "crop_utilization_ratio": round(crop_utilization_ratio, 4),
+            "avg_reid_ms_per_crop": round(avg_reid_ms_per_crop, 4),
             **self.perf.summary(self.frame_idx, exclude={"loop"}),
-            "total_detections": self.perf.total("detect"),
-            "total_tracked_detections": self.perf.total("track"),
-            "total_crops_encoded": self.perf.total("crop"),
+            "total_detections": total_detections,
+            "total_tracked_detections": total_tracked_detections,
+            "total_crops_encoded": total_crops_encoded,
             "total_global_ids_created": int(self.gallery.total_ids_created()),
             "total_autosaves": self.perf.total("autosave"),
             "total_gallery_evictions": int(self.gallery.total_evictions()),
