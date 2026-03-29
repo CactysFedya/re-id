@@ -6,6 +6,7 @@ from typing import Any
 
 import cv2
 
+from pipeline.utils.system_info import build_system_snapshot
 from pipeline.utils.video import open_video_source
 
 
@@ -60,6 +61,7 @@ def reconnect_capture(cfg: Any, source_type: str, source_uri: str | None, logger
 
 def build_reid_config_snapshot(cfg: Any) -> dict[str, Any]:
     return {
+        "system": build_system_snapshot(),
         "reid": {
             "input_video": cfg.input_video,
             "outputs_root": cfg.outputs_root,
