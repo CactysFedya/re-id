@@ -109,7 +109,6 @@ def build_reid_config_snapshot(cfg: Any) -> dict[str, Any]:
                 "iou_threshold": cfg.tracker.iou_threshold,
                 "max_missed": cfg.tracker.max_missed,
                 "confirm_hits": cfg.tracker.confirm_hits,
-                "new_identity_candidate_id": cfg.tracker.new_identity_candidate_id,
             },
         }
     }

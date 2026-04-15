@@ -11,6 +11,9 @@ from pipeline.tracking.iou import IoUTracker
 from pipeline.utils.performance import StageTimer
 
 
+_NEW_IDENTITY_CANDIDATE_ID = 0
+
+
 @dataclass
 class ReidRuntime:
     detector: YoloDetector
@@ -18,7 +21,6 @@ class ReidRuntime:
     gallery: ReIDGallery
     tracker: IoUTracker
     confirm_hits: int
-    new_identity_candidate_id: int
     perf: StageTimer = field(default_factory=StageTimer)
     frame_idx: int = 0
     total_frame_time_s: float = 0.0
@@ -86,10 +88,10 @@ class ReidRuntime:
                     cand_sim = match.similarity
 
                     if cand_id == -1:
-                        cand_id = self.new_identity_candidate_id
+                        cand_id = _NEW_IDENTITY_CANDIDATE_ID
                         cand_sim = float("-inf")
 
-                    if cand_id != self.new_identity_candidate_id:
+                    if cand_id != _NEW_IDENTITY_CANDIDATE_ID:
                         confirmed = self.tracker.propose_identity_id(track_id, cand_id, self.confirm_hits)
                         if confirmed is not None:
                             identity_id = confirmed
@@ -106,7 +108,7 @@ class ReidRuntime:
                     else:
                         confirmed = self.tracker.propose_identity_id(
                             track_id,
-                            self.new_identity_candidate_id,
+                            _NEW_IDENTITY_CANDIDATE_ID,
                             self.confirm_hits,
                         )
                         if confirmed is not None:
@@ -115,7 +117,7 @@ class ReidRuntime:
                             used_identity_ids.add(identity_id)
                             self.identity_last_track[identity_id] = track_id
                         else:
-                            used_candidate_ids.add(self.new_identity_candidate_id)
+                            used_candidate_ids.add(_NEW_IDENTITY_CANDIDATE_ID)
 
                 cv2.rectangle(frame, (x1, y1), (x2, y2), self.draw_color, self.draw_box_thickness)
                 cv2.putText(

@@ -44,4 +44,3 @@ autosave_interval_s = 60.0
 iou_threshold = 0.3
 max_missed = 15
 confirm_hits = 3
-new_identity_candidate_id = 0

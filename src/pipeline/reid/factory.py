@@ -40,5 +40,4 @@ def build_runtime(project_root: Path, cfg: ReidRunConfig) -> ReidRuntime:
         gallery=gallery,
         tracker=tracker,
         confirm_hits=cfg.tracker.confirm_hits,
-        new_identity_candidate_id=cfg.tracker.new_identity_candidate_id,
     )

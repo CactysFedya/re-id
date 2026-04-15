@@ -42,7 +42,6 @@ class TrackerConfig:
     iou_threshold: float
     max_missed: int
     confirm_hits: int
-    new_identity_candidate_id: int
 
 
 @dataclass(frozen=True)
@@ -135,7 +134,6 @@ def load_pipeline_config(project_root: Path, config_relpath: str = "configs/pipe
             iou_threshold=float(reid_raw.get("tracker", {}).get("iou_threshold", 0.3)),
             max_missed=int(reid_raw.get("tracker", {}).get("max_missed", 15)),
             confirm_hits=int(reid_raw.get("tracker", {}).get("confirm_hits", 3)),
-            new_identity_candidate_id=int(reid_raw.get("tracker", {}).get("new_identity_candidate_id", 0)),
         ),
     )
 
