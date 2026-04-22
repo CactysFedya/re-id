@@ -79,6 +79,9 @@ class ReIDGallery:
     def __len__(self) -> int:
         return len(self._prototypes)
 
+    def identity_ids(self) -> set[int]:
+        return set(self._prototypes.keys())
+
     def total_ids_created(self) -> int:
         return self._next_id - 1
 

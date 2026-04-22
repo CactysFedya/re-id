@@ -35,7 +35,7 @@ def run_live() -> None:
     logger = setup_logging(log_file=run_dir / "run.log", name="pipeline.reid.live")
     runtime = build_runtime(project_root, cfg)
     try:
-        runtime.gallery = load_gallery_state(project_root, cfg)
+        runtime.set_gallery(load_gallery_state(project_root, cfg))
     except Exception as exc:
         logger.warning(f"Failed to load gallery state from {gallery_state_path}: {exc}")
 
@@ -160,6 +160,7 @@ def run_live() -> None:
         f"avg_write_ms={metrics.get('avg_write_ms', 0.0):.4f} | avg_autosave_ms={metrics.get('avg_autosave_ms', 0.0):.4f} | "
         f"total_autosaves={metrics['total_autosaves']} | total_gallery_evictions={metrics['total_gallery_evictions']} | "
         f"total_global_ids_created={metrics['total_global_ids_created']} | reappearance_count={metrics['reappearance_count']} | "
+        f"cross_session_reappearance_count={metrics['cross_session_reappearance_count']} | "
         f"reconnect_count={metrics['reconnect_count']} | stop_reason={stop_reason}"
     )
     if recorder is not None:

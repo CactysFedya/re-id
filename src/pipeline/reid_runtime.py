@@ -29,10 +29,19 @@ class ReidRuntime:
     reconnect_count: int = 0
     last_gallery_autosave_monotonic_s: float | None = None
     identity_last_track: dict[int, int] = field(default_factory=dict)
+    initial_gallery_ids: set[int] = field(default_factory=set)
+    cross_session_reappearance_count: int = 0
     draw_color: tuple[int, int, int] = (0, 255, 0)
     draw_box_thickness: int = 2
     draw_font_scale: float = 0.6
     draw_text_thickness: int = 2
+
+    def set_gallery(self, gallery: ReIDGallery) -> None:
+        self.gallery = gallery
+        self.initial_gallery_ids = gallery.identity_ids()
+        self.identity_last_track.clear()
+        self.reappearance_count = 0
+        self.cross_session_reappearance_count = 0
 
     def process_frame(self, frame: Any) -> dict[str, int]:
         frame_started = time.perf_counter()
@@ -100,7 +109,10 @@ class ReidRuntime:
                             if self.gallery.should_update(cand_sim):
                                 self.gallery.update(identity_id, emb)
                             prev_track_id = self.identity_last_track.get(identity_id)
-                            if prev_track_id is not None and prev_track_id != track_id:
+                            if prev_track_id is None and identity_id in self.initial_gallery_ids:
+                                self.reappearance_count += 1
+                                self.cross_session_reappearance_count += 1
+                            elif prev_track_id is not None and prev_track_id != track_id:
                                 self.reappearance_count += 1
                             self.identity_last_track[identity_id] = track_id
                         else:
@@ -175,5 +187,6 @@ class ReidRuntime:
             "total_autosaves": self.perf.total("autosave"),
             "total_gallery_evictions": int(self.gallery.total_evictions()),
             "reappearance_count": int(self.reappearance_count),
+            "cross_session_reappearance_count": int(self.cross_session_reappearance_count),
             "reconnect_count": int(self.reconnect_count),
         }
