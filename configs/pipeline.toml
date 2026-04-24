@@ -7,13 +7,14 @@ metrics_file_name = "metrics.json"
 
 [reid.source]
 type = "file"
-uri = "assets/videos/test.mp4"
+uri = "assets/mot17/mot17-02-sdp.avi"
 reconnect = true
 reconnect_delay_s = 3.0
 reconnect_max_attempts = 5
 
 [reid.output]
 save_video = true
+save_assignments = false
 
 [reid.stop]
 max_frames = ""
@@ -36,8 +37,8 @@ ema = 0.8
 update_threshold = 0.6
 max_ids = 1000
 state_path = "outputs/reid_gallery.json"
-load_on_start = true
-save_on_exit = true
+load_on_start = false
+save_on_exit = false
 autosave_interval_s = 60.0
 
 [reid.tracker]
