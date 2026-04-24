@@ -21,6 +21,7 @@ class ReidRuntime:
     gallery: ReIDGallery
     tracker: IoUTracker
     confirm_hits: int
+    record_assignments: bool = False
     perf: StageTimer = field(default_factory=StageTimer)
     frame_idx: int = 0
     total_frame_time_s: float = 0.0
@@ -31,6 +32,7 @@ class ReidRuntime:
     identity_last_track: dict[int, int] = field(default_factory=dict)
     initial_gallery_ids: set[int] = field(default_factory=set)
     cross_session_reappearance_count: int = 0
+    last_assignments: list[dict[str, int | float | None]] = field(default_factory=list)
     draw_color: tuple[int, int, int] = (0, 255, 0)
     draw_box_thickness: int = 2
     draw_font_scale: float = 0.6
@@ -45,6 +47,8 @@ class ReidRuntime:
 
     def process_frame(self, frame: Any) -> dict[str, int]:
         frame_started = time.perf_counter()
+        frame_number = self.frame_idx + 1
+        self.last_assignments = []
 
         detect_started = time.perf_counter()
         dets = self.detector.predict(frame)
@@ -130,6 +134,21 @@ class ReidRuntime:
                             self.identity_last_track[identity_id] = track_id
                         else:
                             used_candidate_ids.add(_NEW_IDENTITY_CANDIDATE_ID)
+
+                if self.record_assignments:
+                    self.last_assignments.append(
+                        {
+                            "frame": int(frame_number),
+                            "track_id": int(track_id),
+                            "global_id": int(identity_id) if identity_id is not None else None,
+                            "cls": int(cls_id),
+                            "conf": float(conf),
+                            "x": int(x1),
+                            "y": int(y1),
+                            "w": int(x2 - x1),
+                            "h": int(y2 - y1),
+                        }
+                    )
 
                 cv2.rectangle(frame, (x1, y1), (x2, y2), self.draw_color, self.draw_box_thickness)
                 cv2.putText(

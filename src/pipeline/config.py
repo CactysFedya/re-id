@@ -57,6 +57,7 @@ class SourceConfig:
 @dataclass(frozen=True)
 class OutputConfig:
     save_video: bool
+    save_assignments: bool
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,7 @@ def load_pipeline_config(project_root: Path, config_relpath: str = "configs/pipe
         source=_source_cfg(reid_raw),
         output=OutputConfig(
             save_video=bool(reid_raw.get("output", {}).get("save_video", True)),
+            save_assignments=bool(reid_raw.get("output", {}).get("save_assignments", False)),
         ),
         stop=StopConfig(
             max_frames=_opt_int(reid_raw.get("stop", {}).get("max_frames")),

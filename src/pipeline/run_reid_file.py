@@ -1,4 +1,5 @@
 from pathlib import Path
+import csv
 import json
 import time
 
@@ -29,6 +30,7 @@ def run_file() -> None:
     run_dir = make_run_dir(outputs_root, prefix=f"{cfg.run_prefix}_file")
     output_video = run_dir / cfg.output_video_name
     metrics_path = run_dir / cfg.metrics_file_name
+    assignments_path = run_dir / "assignments.csv"
     config_snapshot_path = run_dir / "config_snapshot.json"
     gallery_state_path = resolve_gallery_state_path(project_root, cfg)
 
@@ -39,13 +41,16 @@ def run_file() -> None:
     except Exception as exc:
         logger.warning(f"Failed to load gallery state from {gallery_state_path}: {exc}")
 
-    logger.info(f"Input video:  {source_uri}")
-    logger.info(f"Run dir:      {run_dir}")
-    logger.info(f"Save video:   {cfg.output.save_video}")
-    logger.info(f"Output video: {output_video}")
-    logger.info(f"Metrics file: {metrics_path}")
-    logger.info(f"Config file:  {config_snapshot_path}")
-    logger.info(f"Gallery file: {gallery_state_path}")
+    logger.info(f"Input video:       {source_uri}")
+    logger.info(f"Run dir:           {run_dir}")
+    logger.info(f"Save video:        {cfg.output.save_video}")
+    logger.info(f"Save assignments:  {cfg.output.save_assignments}")
+    logger.info(f"Output video:      {output_video}")
+    logger.info(f"Metrics file:      {metrics_path}")
+    if cfg.output.save_assignments:
+        logger.info(f"Assignments file:  {assignments_path}")
+    logger.info(f"Config file:       {config_snapshot_path}")
+    logger.info(f"Gallery file:      {gallery_state_path}")
     logger.info(f"Gallery size at start: {len(runtime.gallery)}")
 
     save_config_snapshot(config_snapshot_path, cfg)
@@ -53,6 +58,16 @@ def run_file() -> None:
     cap = open_video(Path(source_uri))
     props = get_video_props(cap)
     out = open_writer_avi_mjpg(output_video, props) if cfg.output.save_video else None
+
+    assignments_file = None
+    assignments_writer = None
+    if cfg.output.save_assignments:
+        assignments_file = assignments_path.open("w", newline="", encoding="utf-8")
+        assignments_writer = csv.DictWriter(
+            assignments_file,
+            fieldnames=["frame", "track_id", "global_id", "cls", "conf", "x", "y", "w", "h"],
+        )
+        assignments_writer.writeheader()
 
     log_every = cfg.log_every
     start = time.time()
@@ -73,6 +88,9 @@ def run_file() -> None:
                 break
 
             stats = runtime.process_frame(frame)
+            if assignments_writer is not None:
+                for row in runtime.last_assignments:
+                    assignments_writer.writerow(row)
 
             if out is not None:
                 write_started = time.perf_counter()
@@ -111,6 +129,8 @@ def run_file() -> None:
         cap.release()
         if out is not None:
             out.release()
+        if assignments_file is not None:
+            assignments_file.close()
 
     total_wall_time_s = time.time() - start
     metrics = runtime.build_metrics(total_wall_time_s)
@@ -133,6 +153,8 @@ def run_file() -> None:
     if out is not None:
         logger.info(f"Saved output to: {output_video}")
     logger.info(f"Saved metrics to: {metrics_path}")
+    if cfg.output.save_assignments:
+        logger.info(f"Saved assignments to: {assignments_path}")
     if saved_gallery_path is not None:
         logger.info(f"Saved gallery to: {saved_gallery_path}")
 

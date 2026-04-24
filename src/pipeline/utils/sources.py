@@ -79,6 +79,7 @@ def build_reid_config_snapshot(cfg: Any) -> dict[str, Any]:
             },
             "output": {
                 "save_video": cfg.output.save_video,
+                "save_assignments": cfg.output.save_assignments,
             },
             "stop": {
                 "max_frames": cfg.stop.max_frames,

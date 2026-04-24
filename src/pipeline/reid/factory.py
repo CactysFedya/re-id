@@ -40,4 +40,5 @@ def build_runtime(project_root: Path, cfg: ReidRunConfig) -> ReidRuntime:
         gallery=gallery,
         tracker=tracker,
         confirm_hits=cfg.tracker.confirm_hits,
+        record_assignments=cfg.output.save_assignments,
     )

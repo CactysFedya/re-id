@@ -9,7 +9,7 @@ __pycache__/
 outputs/
 
 # datasets / big assets
-assets/videos/
+assets/
 data/
 
 # models / weights (must not be committed)
