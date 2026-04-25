@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -96,7 +96,7 @@ def load_pipeline_config(project_root: Path, config_relpath: str = "configs/pipe
     if config_path.exists():
         if tomllib is None:
             raise RuntimeError("tomllib is unavailable; use Python 3.11+ to read .toml config")
-        raw = tomllib.loads(config_path.read_text(encoding="utf-8"))
+        raw = tomllib.loads(config_path.read_text(encoding="utf-8-sig"))
 
     reid_raw = raw.get("reid", {})
 

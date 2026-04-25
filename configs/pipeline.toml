@@ -1,4 +1,4 @@
-﻿[reid]
+[reid]
 outputs_root = "outputs"
 run_prefix = "runs"
 output_video_name = "demo_reid.mp4"
