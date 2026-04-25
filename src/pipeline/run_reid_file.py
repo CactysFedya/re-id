@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import csv
 import json
 import time
@@ -15,7 +15,7 @@ from pipeline.reid.persistence import (
 from pipeline.utils.logging import setup_logging
 from pipeline.utils.paths import find_project_root, make_run_dir
 from pipeline.utils.sources import resolve_source_uri
-from pipeline.utils.video import get_video_props, open_video, open_writer_avi_mjpg
+from pipeline.utils.video import get_video_props, open_output_writer, open_video
 
 
 def run_file() -> None:
@@ -28,7 +28,7 @@ def run_file() -> None:
 
     outputs_root = project_root / cfg.outputs_root
     run_dir = make_run_dir(outputs_root, prefix=f"{cfg.run_prefix}_file")
-    output_video = run_dir / cfg.output_video_name
+    requested_output_video = run_dir / cfg.output_video_name
     metrics_path = run_dir / cfg.metrics_file_name
     assignments_path = run_dir / "assignments.csv"
     config_snapshot_path = run_dir / "config_snapshot.json"
@@ -41,23 +41,36 @@ def run_file() -> None:
     except Exception as exc:
         logger.warning(f"Failed to load gallery state from {gallery_state_path}: {exc}")
 
+    save_config_snapshot(config_snapshot_path, cfg)
+
+    cap = open_video(Path(source_uri))
+    try:
+        props = get_video_props(cap)
+        video_writer = open_output_writer(requested_output_video, props) if cfg.output.save_video else None
+    except Exception:
+        cap.release()
+        raise
+
+    output_video = video_writer.path if video_writer is not None else requested_output_video
+
     logger.info(f"Input video:       {source_uri}")
     logger.info(f"Run dir:           {run_dir}")
     logger.info(f"Save video:        {cfg.output.save_video}")
     logger.info(f"Save assignments:  {cfg.output.save_assignments}")
-    logger.info(f"Output video:      {output_video}")
+    if cfg.output.save_video:
+        logger.info(f"Output video:      {output_video}")
+        logger.info(f"Output codec:      {video_writer.codec}")
+        if output_video != requested_output_video:
+            logger.info(
+                "Adjusted output container for compatibility: "
+                f"{requested_output_video.name} -> {output_video.name}"
+            )
     logger.info(f"Metrics file:      {metrics_path}")
     if cfg.output.save_assignments:
         logger.info(f"Assignments file:  {assignments_path}")
     logger.info(f"Config file:       {config_snapshot_path}")
     logger.info(f"Gallery file:      {gallery_state_path}")
     logger.info(f"Gallery size at start: {len(runtime.gallery)}")
-
-    save_config_snapshot(config_snapshot_path, cfg)
-
-    cap = open_video(Path(source_uri))
-    props = get_video_props(cap)
-    out = open_writer_avi_mjpg(output_video, props) if cfg.output.save_video else None
 
     assignments_file = None
     assignments_writer = None
@@ -92,9 +105,9 @@ def run_file() -> None:
                 for row in runtime.last_assignments:
                     assignments_writer.writerow(row)
 
-            if out is not None:
+            if video_writer is not None:
                 write_started = time.perf_counter()
-                out.write(frame)
+                video_writer.writer.write(frame)
                 runtime.perf.add("write", time.perf_counter() - write_started)
             else:
                 runtime.perf.add("write", 0.0)
@@ -127,8 +140,8 @@ def run_file() -> None:
         logger.info("Interrupted by user")
     finally:
         cap.release()
-        if out is not None:
-            out.release()
+        if video_writer is not None:
+            video_writer.writer.release()
         if assignments_file is not None:
             assignments_file.close()
 
@@ -150,7 +163,7 @@ def run_file() -> None:
         f"cross_session_reappearance_count={metrics['cross_session_reappearance_count']} | "
         f"stop_reason={stop_reason}"
     )
-    if out is not None:
+    if video_writer is not None:
         logger.info(f"Saved output to: {output_video}")
     logger.info(f"Saved metrics to: {metrics_path}")
     if cfg.output.save_assignments:

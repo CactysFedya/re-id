@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import csv
 import json
 import time
@@ -28,7 +28,7 @@ def run_live() -> None:
 
     outputs_root = project_root / cfg.outputs_root
     run_dir = make_run_dir(outputs_root, prefix=f"{cfg.run_prefix}_live")
-    output_video = run_dir / cfg.output_video_name
+    requested_output_video = run_dir / cfg.output_video_name
     metrics_path = run_dir / cfg.metrics_file_name
     assignments_path = run_dir / "assignments.csv"
     config_snapshot_path = run_dir / "config_snapshot.json"
@@ -41,16 +41,17 @@ def run_live() -> None:
     except Exception as exc:
         logger.warning(f"Failed to load gallery state from {gallery_state_path}: {exc}")
 
-    logger.info(f"Source:             {source_label_value}")
-    logger.info(f"Run dir:            {run_dir}")
-    logger.info(f"Save video:         {cfg.output.save_video}")
-    logger.info(f"Save assignments:   {cfg.output.save_assignments}")
-    logger.info(f"Output video:       {output_video}")
-    logger.info(f"Metrics file:       {metrics_path}")
+    logger.info(f"Source:                {source_label_value}")
+    logger.info(f"Run dir:               {run_dir}")
+    logger.info(f"Save video:            {cfg.output.save_video}")
+    logger.info(f"Save assignments:      {cfg.output.save_assignments}")
+    if cfg.output.save_video:
+        logger.info(f"Requested output video: {requested_output_video}")
+    logger.info(f"Metrics file:          {metrics_path}")
     if cfg.output.save_assignments:
-        logger.info(f"Assignments file:   {assignments_path}")
-    logger.info(f"Config file:        {config_snapshot_path}")
-    logger.info(f"Gallery file:       {gallery_state_path}")
+        logger.info(f"Assignments file:      {assignments_path}")
+    logger.info(f"Config file:           {config_snapshot_path}")
+    logger.info(f"Gallery file:          {gallery_state_path}")
     logger.info(f"Gallery size at start: {len(runtime.gallery)}")
 
     save_config_snapshot(config_snapshot_path, cfg)
@@ -76,6 +77,7 @@ def run_live() -> None:
     start_perf = time.perf_counter()
     stop_reason = "unknown"
     recorded_fps = 0.0
+    saved_video = None
 
     try:
         while True:
@@ -160,7 +162,9 @@ def run_live() -> None:
 
     total_wall_time_s = time.time() - start
     if recorder is not None and runtime.frame_idx > 0:
-        recorded_fps = recorder.finalize(output_video, props, total_duration_s=total_wall_time_s)
+        saved_video = recorder.finalize(requested_output_video, props, total_duration_s=total_wall_time_s)
+        if saved_video is not None:
+            recorded_fps = saved_video.fps
     metrics = runtime.build_metrics(total_wall_time_s)
     metrics["source_fps"] = round(float(props.fps), 4)
     if props.fps > 0:
@@ -183,14 +187,20 @@ def run_live() -> None:
         f"cross_session_reappearance_count={metrics['cross_session_reappearance_count']} | "
         f"reconnect_count={metrics['reconnect_count']} | stop_reason={stop_reason}"
     )
-    if recorder is not None:
-        logger.info(f"Recorded video fps: {recorded_fps:.2f} (fixed container fps, real timing preserved by frame holds)")
-        logger.info(f"Saved output to: {output_video}")
-    logger.info(f"Saved metrics to: {metrics_path}")
+    if saved_video is not None:
+        if saved_video.path != requested_output_video:
+            logger.info(
+                "Adjusted output container for compatibility: "
+                f"{requested_output_video.name} -> {saved_video.path.name}"
+            )
+        logger.info(f"Recorded video fps:   {recorded_fps:.2f} (fixed container fps, real timing preserved by frame holds)")
+        logger.info(f"Recorded video codec: {saved_video.codec}")
+        logger.info(f"Saved output to:      {saved_video.path}")
+    logger.info(f"Saved metrics to:     {metrics_path}")
     if cfg.output.save_assignments:
         logger.info(f"Saved assignments to: {assignments_path}")
     if saved_gallery_path is not None:
-        logger.info(f"Saved gallery to: {saved_gallery_path}")
+        logger.info(f"Saved gallery to:     {saved_gallery_path}")
 
 
 def main() -> None:

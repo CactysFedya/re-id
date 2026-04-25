@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+﻿from dataclasses import dataclass
 from pathlib import Path
 import shutil
 import threading
@@ -13,6 +13,20 @@ class VideoProps:
     width: int
     height: int
     frame_count: int
+
+
+@dataclass
+class OutputVideoWriter:
+    writer: cv2.VideoWriter
+    path: Path
+    codec: str
+
+
+@dataclass(frozen=True)
+class SavedVideoInfo:
+    path: Path
+    fps: float
+    codec: str
 
 
 class LatestFrameCapture:
@@ -94,12 +108,12 @@ class TimelineVideoRecorder:
         self._frame_paths.append(frame_path)
         self._timestamps_s.append(float(timestamp_s))
 
-    def finalize(self, output_path: Path, props: VideoProps, total_duration_s: float) -> float:
+    def finalize(self, output_path: Path, props: VideoProps, total_duration_s: float) -> SavedVideoInfo | None:
         if not self._frame_paths:
-            return 0.0
+            return None
 
         timeline_fps = props.fps if props.fps > 0 else 30.0
-        writer = open_writer_avi_mjpg(
+        video_writer = open_output_writer(
             output_path,
             VideoProps(
                 fps=float(timeline_fps),
@@ -123,12 +137,16 @@ class TimelineVideoRecorder:
                 duration_s = max(1.0 / timeline_fps, next_ts - current_ts)
                 repeat = max(1, int(round(duration_s * timeline_fps)))
                 for _ in range(repeat):
-                    writer.write(frame)
+                    video_writer.writer.write(frame)
         finally:
-            writer.release()
+            video_writer.writer.release()
             shutil.rmtree(self.frames_dir, ignore_errors=True)
 
-        return float(timeline_fps)
+        return SavedVideoInfo(
+            path=video_writer.path,
+            fps=float(timeline_fps),
+            codec=video_writer.codec,
+        )
 
 
 def open_video(path: Path) -> cv2.VideoCapture:
@@ -212,6 +230,48 @@ def get_video_props(cap: cv2.VideoCapture) -> VideoProps:
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     return VideoProps(fps=float(fps), width=width, height=height, frame_count=frame_count)
+
+
+def open_output_writer(path: Path, props: VideoProps) -> OutputVideoWriter:
+    errors: list[str] = []
+    for candidate_path, codec in _writer_candidates(Path(path)):
+        candidate_path.parent.mkdir(parents=True, exist_ok=True)
+        fourcc = cv2.VideoWriter_fourcc(*codec)
+        out = cv2.VideoWriter(str(candidate_path), fourcc, props.fps, (props.width, props.height))
+        if out.isOpened():
+            return OutputVideoWriter(writer=out, path=candidate_path, codec=codec)
+
+        out.release()
+        errors.append(f"{candidate_path.name} ({codec})")
+        try:
+            candidate_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    attempted = ", ".join(errors)
+    raise RuntimeError(f"VideoWriter failed to open. Tried: {attempted}")
+
+
+def _writer_candidates(path: Path) -> list[tuple[Path, str]]:
+    requested = Path(path)
+    mp4_path = requested if requested.suffix.lower() == ".mp4" else requested.with_suffix(".mp4")
+    avi_path = requested if requested.suffix.lower() == ".avi" else requested.with_suffix(".avi")
+
+    candidates = [
+        (mp4_path, "mp4v"),
+        (avi_path, "XVID"),
+        (avi_path, "MJPG"),
+    ]
+
+    unique: list[tuple[Path, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for candidate_path, codec in candidates:
+        key = (str(candidate_path), codec)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append((candidate_path, codec))
+    return unique
 
 
 def open_writer_avi_mjpg(path: Path, props: VideoProps) -> cv2.VideoWriter:

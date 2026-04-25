@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -104,7 +104,7 @@ def load_pipeline_config(project_root: Path, config_relpath: str = "configs/pipe
         input_video=reid_raw.get("input_video", "assets/videos/test.mp4"),
         outputs_root=reid_raw.get("outputs_root", "outputs"),
         run_prefix=reid_raw.get("run_prefix", "runs"),
-        output_video_name=reid_raw.get("output_video_name", "demo_reid.avi"),
+        output_video_name=reid_raw.get("output_video_name", "demo_reid.mp4"),
         log_every=int(reid_raw.get("log_every", 30)),
         metrics_file_name=reid_raw.get("metrics_file_name", "metrics.json"),
         source=_source_cfg(reid_raw),

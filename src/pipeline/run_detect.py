@@ -1,11 +1,11 @@
-from pathlib import Path
+﻿from pathlib import Path
 import time
 
 import cv2
 
 from pipeline.utils.logging import setup_logging
 from pipeline.utils.paths import find_project_root, make_run_dir
-from pipeline.utils.video import open_video, get_video_props, open_writer_avi_mjpg
+from pipeline.utils.video import get_video_props, open_output_writer, open_video
 from pipeline.detection.yolo import YoloDetector
 
 
@@ -15,7 +15,7 @@ def main() -> None:
     input_video = project_root / "assets" / "videos" / "test.mp4"
     outputs_root = project_root / "outputs" / "videos"
     run_dir = make_run_dir(outputs_root, prefix="detect")
-    output_video = run_dir / "demo_detect_yolo26.avi"
+    requested_output_video = run_dir / "demo_detect_yolo26.mp4"
 
     logger = setup_logging(log_file=run_dir / "run.log")
 
@@ -33,13 +33,20 @@ def main() -> None:
 
     logger.info(f"Input video:  {input_video}")
     logger.info(f"Run dir:      {run_dir}")
-    logger.info(f"Output video: {output_video}")
 
     cap = open_video(input_video)
     props = get_video_props(cap)
     logger.info(f"Video opened: {props.width}x{props.height}, fps={props.fps:.2f}, frames={props.frame_count}")
 
-    out = open_writer_avi_mjpg(output_video, props)
+    video_writer = open_output_writer(requested_output_video, props)
+    output_video = video_writer.path
+    logger.info(f"Output video: {output_video}")
+    logger.info(f"Output codec: {video_writer.codec}")
+    if output_video != requested_output_video:
+        logger.info(
+            "Adjusted output container for compatibility: "
+            f"{requested_output_video.name} -> {output_video.name}"
+        )
 
     start_time = time.time()
     frame_idx = 0
@@ -65,7 +72,7 @@ def main() -> None:
                 2,
             )
 
-        out.write(frame)
+        video_writer.writer.write(frame)
         frame_idx += 1
 
         if frame_idx % log_every == 0:
@@ -74,7 +81,7 @@ def main() -> None:
             logger.info(f"Processed {frame_idx}/{props.frame_count} frames ({fps_proc:.2f} FPS)")
 
     cap.release()
-    out.release()
+    video_writer.writer.release()
 
     total_time = time.time() - start_time
     avg_fps = frame_idx / total_time if total_time > 0 else 0.0
