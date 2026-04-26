@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 import cv2
+import numpy as np
 
 from pipeline.reid.gallery import ReIDGallery, l2_normalize
 from pipeline.tracking.iou import IoUTracker
