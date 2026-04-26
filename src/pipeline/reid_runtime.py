@@ -12,6 +12,58 @@ from pipeline.utils.performance import StageTimer
 
 
 _NEW_IDENTITY_CANDIDATE_ID = 0
+_UNASSIGNED_COLOR = (80, 80, 80)
+_LABEL_TEXT_COLOR = (255, 255, 255)
+
+
+def _identity_color(identity_id: int | None) -> tuple[int, int, int]:
+    if identity_id is None:
+        return _UNASSIGNED_COLOR
+
+    hue = (int(identity_id) * 47) % 180
+    color = cv2.cvtColor(
+        np.uint8([[[hue, 210, 255]]]),
+        cv2.COLOR_HSV2BGR,
+    )[0, 0]
+    return int(color[0]), int(color[1]), int(color[2])
+
+
+def _draw_labeled_box(
+    frame: Any,
+    bbox: tuple[int, int, int, int],
+    text: str,
+    color: tuple[int, int, int],
+    *,
+    box_thickness: int,
+    font_scale: float,
+    text_thickness: int,
+) -> None:
+    x1, y1, x2, y2 = bbox
+    cv2.rectangle(frame, (x1, y1), (x2, y2), color, box_thickness)
+
+    (text_width, text_height), baseline = cv2.getTextSize(
+        text,
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale,
+        text_thickness,
+    )
+    padding = 4
+    label_x1 = x1
+    label_y2 = max(text_height + baseline + padding * 2, y1)
+    label_y1 = max(0, label_y2 - text_height - baseline - padding * 2)
+    label_x2 = min(frame.shape[1] - 1, label_x1 + text_width + padding * 2)
+
+    cv2.rectangle(frame, (label_x1, label_y1), (label_x2, label_y2), color, -1)
+    cv2.putText(
+        frame,
+        text,
+        (label_x1 + padding, label_y2 - baseline - padding),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale,
+        _LABEL_TEXT_COLOR,
+        text_thickness,
+        cv2.LINE_AA,
+    )
 
 
 @dataclass
@@ -150,15 +202,16 @@ class ReidRuntime:
                         }
                     )
 
-                cv2.rectangle(frame, (x1, y1), (x2, y2), self.draw_color, self.draw_box_thickness)
-                cv2.putText(
+                color = _identity_color(identity_id)
+                label = f"id {identity_id}" if identity_id is not None else "id ?"
+                _draw_labeled_box(
                     frame,
-                    f"cls {cls_id} | tid {track_id} | id {identity_id} | det {conf:.2f}",
-                    (x1, max(0, y1 - 6)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    self.draw_font_scale,
-                    self.draw_color,
-                    self.draw_text_thickness,
+                    (x1, y1, x2, y2),
+                    f"{label}  t{track_id}  {conf:.2f}",
+                    color,
+                    box_thickness=self.draw_box_thickness,
+                    font_scale=self.draw_font_scale,
+                    text_thickness=self.draw_text_thickness,
                 )
             self.perf.add("draw", time.perf_counter() - draw_started, count=len(items))
         else:
