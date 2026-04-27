@@ -1,6 +1,6 @@
 ﻿[reid]
 outputs_root = "outputs/funtional_tests"
-run_prefix = "missing_person_return"
+run_prefix = "reid"
 output_video_name = "demo_reid.mp4"
 log_every = 30
 metrics_file_name = "metrics.json"

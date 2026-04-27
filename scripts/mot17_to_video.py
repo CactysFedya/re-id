@@ -29,6 +29,12 @@ def parse_args() -> argparse.Namespace:
         help="Optional limit for a shorter test video.",
     )
     parser.add_argument(
+        "--start-frame",
+        type=int,
+        default=1,
+        help="First 1-based MOT17 frame to include. Defaults to 1.",
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Overwrite output video if it already exists.",
@@ -54,7 +60,13 @@ def default_output_path(sequence_dir: Path, sequence_name: str) -> Path:
     return mot17_root / "videos" / f"{sequence_name}.avi"
 
 
-def convert_sequence(sequence_dir: Path, output_path: Path, max_frames: int | None, overwrite: bool) -> None:
+def convert_sequence(
+    sequence_dir: Path,
+    output_path: Path,
+    max_frames: int | None,
+    overwrite: bool,
+    start_frame: int = 1,
+) -> None:
     sequence_dir = sequence_dir.resolve()
     info = load_seqinfo(sequence_dir)
 
@@ -66,8 +78,13 @@ def convert_sequence(sequence_dir: Path, output_path: Path, max_frames: int | No
     frame_count = int(info["seqlength"])
     image_ext = info.get("imext", ".jpg")
 
+    start_frame = max(1, int(start_frame))
+    if start_frame > frame_count:
+        raise ValueError(f"start_frame={start_frame} exceeds sequence length {frame_count}")
+
+    end_frame = frame_count
     if max_frames is not None:
-        frame_count = min(frame_count, max(0, max_frames))
+        end_frame = min(frame_count, start_frame + max(0, max_frames) - 1)
 
     if output_path.exists() and not overwrite:
         raise FileExistsError(f"Output already exists: {output_path}. Use --overwrite to replace it.")
@@ -80,7 +97,7 @@ def convert_sequence(sequence_dir: Path, output_path: Path, max_frames: int | No
 
     try:
         written = 0
-        for frame_idx in range(1, frame_count + 1):
+        for frame_idx in range(start_frame, end_frame + 1):
             frame_path = frames_dir / f"{frame_idx:06d}{image_ext}"
             frame = cv2.imread(str(frame_path))
             if frame is None:
@@ -93,6 +110,7 @@ def convert_sequence(sequence_dir: Path, output_path: Path, max_frames: int | No
         writer.release()
 
     print(f"Converted {written} frames from {sequence_name} to {output_path}")
+    print(f"Frame range: {start_frame}-{end_frame}")
     print(f"Video properties: {width}x{height}, {fps:g} FPS")
 
 
@@ -101,7 +119,7 @@ def main() -> None:
     sequence_dir = args.sequence_dir
     info = load_seqinfo(sequence_dir)
     output_path = args.output or default_output_path(sequence_dir, info.get("name", sequence_dir.name))
-    convert_sequence(sequence_dir, output_path, args.max_frames, args.overwrite)
+    convert_sequence(sequence_dir, output_path, args.max_frames, args.overwrite, args.start_frame)
 
 
 if __name__ == "__main__":
