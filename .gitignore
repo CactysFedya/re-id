@@ -19,3 +19,6 @@ models/
 
 # logs
 *.log
+
+# local test scratch
+tests/.tmp/

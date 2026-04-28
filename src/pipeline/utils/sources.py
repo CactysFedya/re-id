@@ -7,6 +7,7 @@ from typing import Any
 import cv2
 
 from pipeline.utils.system_info import build_system_snapshot
+from pipeline.utils.paths import resolve_path
 from pipeline.utils.video import open_video_source
 
 
@@ -17,15 +18,13 @@ def is_live_source(source_type: str) -> bool:
     return source_type in LIVE_SOURCE_TYPES
 
 
-def resolve_source_uri(project_root: Path, source_type: str, source_uri: str | None) -> str | None:
+def resolve_source_uri(base_dir: Path, source_type: str, source_uri: str | None) -> str | None:
     if source_type != "file" or source_uri is None:
         return source_uri
 
-    candidate = Path(source_uri)
-    if not candidate.is_absolute():
-        candidate = project_root / candidate
-    if not candidate.exists():
-        raise FileNotFoundError(f"Put a video here: {candidate}")
+    candidate = resolve_path(base_dir, source_uri)
+    if candidate is None or not candidate.exists():
+        raise FileNotFoundError(f"File video source not found: {candidate}")
     return str(candidate)
 
 

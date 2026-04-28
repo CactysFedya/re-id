@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reid-pipeline"
+version = "0.1.0"
+description = "Configurable object re-identification pipeline for video streams."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "gdown",
+    "numpy",
+    "opencv-python",
+    "PyYAML",
+    "tensorboard",
+    "torchreid",
+    "tqdm",
+    "ultralytics",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "build",
+    "pre-commit",
+    "ruff",
+]
+
+[project.scripts]
+reid-run = "pipeline.cli:main"
+reid-dump-config = "pipeline.cli:dump_config_main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

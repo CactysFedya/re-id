@@ -1,13 +1,20 @@
-﻿[reid]
-outputs_root = "../outputs/funtional_tests"
+# Full pipeline configuration template.
+# You can keep only the sections you want to override in your own TOML file.
+
+[reid]
+outputs_root = "outputs"
 run_prefix = "reid"
 output_video_name = "demo_reid.mp4"
 log_every = 30
 metrics_file_name = "metrics.json"
 
 [reid.source]
+# Available values: file, usb, camera, rtsp, http, https, mjpeg
 type = "file"
-uri = "../assets/mot17/mot17-05-sdp-001-207.avi"
+# Leave empty to pass the source from the API/CLI.
+uri = ""
+# Only for usb/camera sources.
+device_index = ""
 reconnect = true
 reconnect_delay_s = 3.0
 reconnect_max_attempts = 5
@@ -17,18 +24,22 @@ save_video = false
 save_assignments = true
 
 [reid.stop]
+# Leave empty to disable the stop condition.
 max_frames = ""
 max_duration_s = ""
 
 [reid.detector]
+# Any Ultralytics model name or local weights can be used.
 model_name = "yolo26n.pt"
 weights_path = ""
-conf = 0.11
+conf = 0.25
 classes = [0]
 
 [reid.extractor]
+# Any Torchreid model name can be used.
 model_name = "osnet_x1_0"
 weights_path = ""
+# Examples: "", "cpu", "cuda", "cuda:0"
 device = ""
 
 [reid.gallery]
@@ -36,8 +47,8 @@ sim_threshold = 0.77
 ema = 0.9
 update_threshold = 0.81
 max_ids = 1000
-state_path = "../outputs/reid_gallery.json"
-load_on_start = false
+state_path = "outputs/reid_gallery.json"
+load_on_start = true
 save_on_exit = true
 autosave_interval_s = 60.0
 
