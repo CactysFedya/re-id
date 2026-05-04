@@ -1,0 +1,11 @@
+ultralytics
+opencv-python
+numpy
+tqdm
+ruff
+black
+pre-commit
+PyYAML
+torchreid
+gdown
+tensorboard

@@ -1,0 +1,29 @@
+# venv / IDE
+.venv/
+.idea/
+__pycache__/
+*.pyc
+.vscode/
+
+# outputs
+outputs/
+
+# datasets / big assets
+assets/
+data/
+
+# models / weights (must not be committed)
+models/
+*.pt
+*.pth
+
+# logs
+*.log
+
+# local test scratch
+tests/.tmp/
+
+# build artefacts
+*.egg-info/
+build/
+dist/
