@@ -7,6 +7,7 @@ from pathlib import Path
 from pipeline.config import ReidRunConfig
 from pipeline.reid.gallery import ReIDGallery
 from pipeline.reid_runtime import ReidRuntime
+from pipeline.utils.paths import resolve_path
 from pipeline.utils.sources import build_reid_config_snapshot
 
 
@@ -15,18 +16,11 @@ def save_config_snapshot(path: Path, cfg: ReidRunConfig) -> None:
     path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def resolve_gallery_state_path(project_root: Path, cfg: ReidRunConfig) -> Path | None:
-    state_path = cfg.gallery.state_path
-    if state_path is None:
-        return None
-
-    candidate = Path(state_path)
-    if not candidate.is_absolute():
-        candidate = project_root / candidate
-    return candidate
+def resolve_gallery_state_path(base_dir: Path, cfg: ReidRunConfig) -> Path | None:
+    return resolve_path(base_dir, cfg.gallery.state_path)
 
 
-def load_gallery_state(project_root: Path, cfg: ReidRunConfig) -> ReIDGallery:
+def load_gallery_state(base_dir: Path, cfg: ReidRunConfig) -> ReIDGallery:
     gallery = ReIDGallery(
         sim_threshold=cfg.gallery.sim_threshold,
         ema=cfg.gallery.ema,
@@ -36,7 +30,7 @@ def load_gallery_state(project_root: Path, cfg: ReidRunConfig) -> ReIDGallery:
     if not cfg.gallery.load_on_start:
         return gallery
 
-    state_path = resolve_gallery_state_path(project_root, cfg)
+    state_path = resolve_gallery_state_path(base_dir, cfg)
     if state_path is None or not state_path.exists():
         return gallery
 
@@ -62,8 +56,8 @@ def load_gallery_state(project_root: Path, cfg: ReidRunConfig) -> ReIDGallery:
     return loaded
 
 
-def _persist_gallery_state(project_root: Path, cfg: ReidRunConfig, gallery: ReIDGallery) -> Path | None:
-    state_path = resolve_gallery_state_path(project_root, cfg)
+def _persist_gallery_state(base_dir: Path, cfg: ReidRunConfig, gallery: ReIDGallery) -> Path | None:
+    state_path = resolve_gallery_state_path(base_dir, cfg)
     if state_path is None:
         return None
 
@@ -77,15 +71,15 @@ def _persist_gallery_state(project_root: Path, cfg: ReidRunConfig, gallery: ReID
     return state_path
 
 
-def save_gallery_state(project_root: Path, cfg: ReidRunConfig, gallery: ReIDGallery) -> Path | None:
+def save_gallery_state(base_dir: Path, cfg: ReidRunConfig, gallery: ReIDGallery) -> Path | None:
     if not cfg.gallery.save_on_exit:
         return None
 
-    return _persist_gallery_state(project_root, cfg, gallery)
+    return _persist_gallery_state(base_dir, cfg, gallery)
 
 
 def maybe_autosave_gallery_state(
-    project_root: Path,
+    base_dir: Path,
     cfg: ReidRunConfig,
     runtime: ReidRuntime,
     now_monotonic_s: float,
@@ -94,7 +88,7 @@ def maybe_autosave_gallery_state(
     if interval_s is None or interval_s <= 0:
         return None
 
-    if resolve_gallery_state_path(project_root, cfg) is None:
+    if resolve_gallery_state_path(base_dir, cfg) is None:
         return None
 
     last = runtime.last_gallery_autosave_monotonic_s
@@ -106,7 +100,7 @@ def maybe_autosave_gallery_state(
         return None
 
     started = time.perf_counter()
-    saved_path = _persist_gallery_state(project_root, cfg, runtime.gallery)
+    saved_path = _persist_gallery_state(base_dir, cfg, runtime.gallery)
     runtime.perf.add("autosave", time.perf_counter() - started, count=1)
     runtime.last_gallery_autosave_monotonic_s = float(now_monotonic_s)
     return saved_path

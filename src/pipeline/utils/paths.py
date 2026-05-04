@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 
 
 def find_project_root(start: Path) -> Path:
@@ -22,3 +23,17 @@ def make_run_dir(base_dir: Path, *, prefix: str) -> Path:
     run_dir = base_dir / prefix / timestamp_str()
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
+
+
+def resolve_path(base_dir: Path, value: str | Path | None) -> Optional[Path]:
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    candidate = Path(text).expanduser()
+    if not candidate.is_absolute():
+        candidate = Path(base_dir) / candidate
+    return candidate.resolve()

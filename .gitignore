@@ -19,3 +19,11 @@ models/
 
 # logs
 *.log
+
+# local test scratch
+tests/.tmp/
+
+# build artefacts
+*.egg-info/
+build/
+dist/

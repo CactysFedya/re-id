@@ -8,11 +8,15 @@ from pipeline.reid.extractor import ReIDExtractor
 from pipeline.reid.gallery import ReIDGallery
 from pipeline.reid_runtime import ReidRuntime
 from pipeline.tracking.iou import IoUTracker
+from pipeline.utils.paths import resolve_path
 
 
-def build_runtime(project_root: Path, cfg: ReidRunConfig) -> ReidRuntime:
-    local_weights = project_root / cfg.detector.weights_path if cfg.detector.weights_path else None
-    extractor_weights = project_root / cfg.extractor.weights_path if cfg.extractor.weights_path else None
+def build_runtime(base_dir: Path, cfg: ReidRunConfig) -> ReidRuntime:
+    local_weights = resolve_path(base_dir, cfg.detector.weights_path)
+    extractor_weights = resolve_path(base_dir, cfg.extractor.weights_path)
+
+    if cfg.detector.weights_path and local_weights is not None and not local_weights.exists():
+        raise FileNotFoundError(f"Detector weights file not found: {local_weights}")
     if extractor_weights is not None and not extractor_weights.exists():
         raise FileNotFoundError(f"ReID weights file not found: {extractor_weights}")
 
