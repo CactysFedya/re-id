@@ -303,6 +303,15 @@ def round_ratio(value: float, reference: float) -> float | None:
     return round(value / reference, 4)
 
 
+def f1_score(precision: float | None, recall: float | None) -> float | None:
+    if precision is None or recall is None:
+        return None
+    denom = precision + recall
+    if denom == 0:
+        return 0.0
+    return round(2.0 * precision * recall / denom, 4)
+
+
 def mean(values: Iterable[float]) -> float:
     values = list(values)
     if not values:
@@ -457,6 +466,8 @@ def build_summary(
         }
     )
     gt_global_pairs, global_gt_pairs = build_pair_counters(matches)
+    recall = round_ratio(matched_count, total_gt)
+    precision = round_ratio(matched_count, total_assignments)
 
     return {
         "assignments_path": str(assignments_path),
@@ -475,8 +486,9 @@ def build_summary(
             "matched_detections": int(matched_count),
             "unmatched_gt": int(unmatched_gt),
             "unmatched_system_assignments": int(unmatched_assignments),
-            "recall": round_ratio(matched_count, total_gt),
-            "precision": round_ratio(matched_count, total_assignments),
+            "recall": recall,
+            "precision": precision,
+            "f1": f1_score(precision, recall),
             "avg_iou_matched": round(mean(match.iou for match in matches), 4),
         },
         "identity": {
