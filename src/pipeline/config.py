@@ -47,7 +47,7 @@ max_duration_s = ""
 # Any Ultralytics model name or local weights can be used.
 model_name = "yolo26n.pt"
 weights_path = ""
-conf = 0.25
+conf = 0.45
 classes = [0]
 
 [reid.extractor]
@@ -58,18 +58,18 @@ weights_path = ""
 device = ""
 
 [reid.gallery]
-sim_threshold = 0.77
-ema = 0.9
-update_threshold = 0.81
+sim_threshold = 0.75
+ema = 0.65
+update_threshold = 0.80
 max_ids = 1000
 state_path = "outputs/reid_gallery.json"
-load_on_start = true
+load_on_start = false
 save_on_exit = true
 autosave_interval_s = 60.0
 
 [reid.tracker]
-iou_threshold = 0.4
-max_missed = 5
+iou_threshold = 0.5
+max_missed = 3
 confirm_hits = 3
 """
 
@@ -100,7 +100,7 @@ DEFAULT_PIPELINE_CONFIG_RAW: Dict[str, Any] = {
         "detector": {
             "model_name": "yolo26n.pt",
             "weights_path": "",
-            "conf": 0.25,
+            "conf": 0.45,
             "classes": [0],
         },
         "extractor": {
@@ -109,18 +109,18 @@ DEFAULT_PIPELINE_CONFIG_RAW: Dict[str, Any] = {
             "weights_path": "",
         },
         "gallery": {
-            "sim_threshold": 0.77,
-            "ema": 0.9,
-            "update_threshold": 0.81,
+            "sim_threshold": 0.75,
+            "ema": 0.65,
+            "update_threshold": 0.80,
             "max_ids": 1000,
             "state_path": "outputs/reid_gallery.json",
-            "load_on_start": True,
+            "load_on_start": False,
             "save_on_exit": True,
             "autosave_interval_s": 60.0,
         },
         "tracker": {
-            "iou_threshold": 0.4,
-            "max_missed": 5,
+            "iou_threshold": 0.5,
+            "max_missed": 3,
             "confirm_hits": 3,
         },
     }
@@ -343,18 +343,18 @@ def _pipeline_config_from_raw(raw: Mapping[str, Any]) -> PipelineConfig:
             weights_path=_opt_str(reid_raw.get("extractor", {}).get("weights_path")),
         ),
         gallery=GalleryConfig(
-            sim_threshold=float(reid_raw.get("gallery", {}).get("sim_threshold", 0.77)),
-            ema=float(reid_raw.get("gallery", {}).get("ema", 0.9)),
-            update_threshold=float(reid_raw.get("gallery", {}).get("update_threshold", 0.81)),
+            sim_threshold=float(reid_raw.get("gallery", {}).get("sim_threshold", 0.75)),
+            ema=float(reid_raw.get("gallery", {}).get("ema", 0.65)),
+            update_threshold=float(reid_raw.get("gallery", {}).get("update_threshold", 0.80)),
             max_ids=_opt_int(reid_raw.get("gallery", {}).get("max_ids", 1000)),
             state_path=_opt_str(reid_raw.get("gallery", {}).get("state_path", "outputs/reid_gallery.json")),
-            load_on_start=bool(reid_raw.get("gallery", {}).get("load_on_start", True)),
+            load_on_start=bool(reid_raw.get("gallery", {}).get("load_on_start", False)),
             save_on_exit=bool(reid_raw.get("gallery", {}).get("save_on_exit", True)),
             autosave_interval_s=_opt_float(reid_raw.get("gallery", {}).get("autosave_interval_s", 60.0)),
         ),
         tracker=TrackerConfig(
-            iou_threshold=float(reid_raw.get("tracker", {}).get("iou_threshold", 0.4)),
-            max_missed=int(reid_raw.get("tracker", {}).get("max_missed", 5)),
+            iou_threshold=float(reid_raw.get("tracker", {}).get("iou_threshold", 0.5)),
+            max_missed=int(reid_raw.get("tracker", {}).get("max_missed", 3)),
             confirm_hits=int(reid_raw.get("tracker", {}).get("confirm_hits", 3)),
         ),
     )
@@ -365,7 +365,7 @@ def _detector_cfg(raw: Mapping[str, Any]) -> DetectorConfig:
     return DetectorConfig(
         model_name=str(raw.get("model_name", "yolo26n.pt")),
         weights_path=_opt_str(raw.get("weights_path")),
-        conf=float(raw.get("conf", 0.25)),
+        conf=float(raw.get("conf", 0.45)),
         classes=[int(v) for v in raw.get("classes", [0])],
     )
 
